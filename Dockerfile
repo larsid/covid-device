@@ -7,7 +7,7 @@ RUN apt-get update \
     iproute2 \
     python3 \
     pip \
-    python3.8-venv \
+    python3.12-venv \
     && apt-get autoremove
 
 # Use a virtual environment to avoid running pip as root
