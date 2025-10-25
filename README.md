@@ -32,6 +32,18 @@ Every update transmits a JSON payload with the following fields:
 
 The timing between updates is randomized to mimic irregular reporting intervals (2–5 seconds).
 
+#### Example payload
+
+```json
+{
+  "name": "covid-device-12345",
+  "temperature": 37.2,
+  "heart_rate": 82,
+  "blood_pressure": 118,
+  "respiratory_rate": 18
+}
+```
+
 ## Getting started
 
 ### Prerequisites
