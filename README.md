@@ -106,6 +106,7 @@ Build and run the containerised simulator:
 docker build -t covid-device .
 docker run --rm \
   -e URL="http://your-api:8000" \
+  -e BIND_IP="10.0.0.15" \
   covid-device
 ```
 
@@ -116,8 +117,13 @@ Configure behaviour with environment variables:
 |----------|-------------|---------|
 | `URL`    | Base URL of the monitoring API. | `http://localhost:8000` |
 | `UID`    | Fixed identifier for the device. A UUID4 is generated when omitted. | *(generated)* |
+| `BIND_IP` | Optional local address used when establishing outbound HTTP connections. Useful when the container must communicate using a specific interface (for example, the emulator-provided 10.x.x.x address). | *(unset)* |
 | `INTERVAL_MIN` | Minimum seconds between updates. | `2` |
 | `INTERVAL_MAX` | Maximum seconds between updates. | `5` |
+
+When `BIND_IP` is provided the simulator binds its HTTP client to that address before contacting the remote API. This ensures the
+source IP of requests originates from the specified network interface, which is particularly helpful when running inside network
+emulators that expose multiple IP ranges.
 
 > **Tip:** Use a reverse proxy or tunnelling service when testing against remote APIs.
 
