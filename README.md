@@ -1,42 +1,56 @@
 # COVID Device Simulator
 
-## Overview
+A lightweight Python service that emulates a medical IoT device streaming anonymised vital signs to a remote COVID-19 monitoring platform. The simulator is useful for testing integrations, demos, and local development without requiring physical hardware.
 
-This repository contains a lightweight Python service that simulates an IoT device streaming patient vitals to a remote COVID-19 monitoring platform. The simulator repeatedly generates random vital signs, registers itself with the remote API, and keeps the server up to date until the process exits.
+---
 
-The project is helpful for:
+## Table of contents
+- [Project status](#project-status)
+- [Features](#features)
+- [System overview](#system-overview)
+- [Getting started](#getting-started)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+  - [Running the simulator](#running-the-simulator)
+  - [Docker](#docker)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-- Testing remote monitoring back ends without deploying real hardware.
-- Demonstrating how a medical IoT device might communicate with a REST API.
-- Validating Docker-based deployment pipelines via the included GitHub Actions workflow.
+---
 
-## How it works
+## Project status
+Prototype. The simulator is stable for local testing but has not been hardened for production workloads.
 
-The core logic lives in [`device.py`](device.py). When launched, the script:
+## Features
+- Registers a synthetic device with a configurable REST API.
+- Periodically publishes randomised vital-sign payloads (temperature, heart rate, blood pressure, respiratory rate).
+- Cleans up remote records on shutdown when possible.
+- Ships with Docker packaging for easy deployment.
 
-1. Creates a unique identifier for the simulated device (either from the `UID` environment variable or a randomly generated UUID).
-2. Connects to the configured API base URL (default `http://localhost:8000`).
-3. Registers the device by POSTing generated vital-sign data to `/users` and storing the returned numeric identifier.
-4. Enters a loop where it periodically updates the user record with new vitals via PUT requests to `/users/{id}`.
-5. Attempts to delete the user (`DELETE /users/{id}`) if the process encounters an unhandled exception.
+## System overview
+```
+┌────────────┐     HTTP(S)      ┌─────────────────────┐
+│ covid-device├─────────────────► Remote monitoring API│
+└────────────┘  JSON payloads   └─────────────────────┘
+```
 
-### Generated vital signs
+All application logic resides in [`device.py`](device.py).
 
-Every update transmits a JSON payload with the following fields:
+1. Resolve a device identifier from the `UID` environment variable or generate a UUID4.
+2. Register the device by POSTing to `/users` at the configured base `URL`.
+3. Enter an update loop, sending PUT requests to `/users/{id}` with fresh vitals every 2–5 seconds.
+4. Attempt to delete the remote record (`DELETE /users/{id}`) when the process stops unexpectedly.
 
-- `name`: Identifier of the device instance.
-- `temperature`: Random body temperature between 35.0 °C and 39.0 °C.
-- `heart_rate`: Integer beats-per-minute ranging from 0 to 119.
-- `blood_pressure`: Integer systolic pressure between 5 and 129 mmHg.
-- `respiratory_rate`: Integer breaths-per-minute between 5 and 29.
+### Sample message formats
 
-The timing between updates is randomized to mimic irregular reporting intervals (2–5 seconds).
-
-#### Example payload
+Registration request (`POST /users`):
 
 ```json
 {
-  "name": "covid-device-12345",
+  "name": "device-1234",
   "temperature": 37.2,
   "heart_rate": 82,
   "blood_pressure": 118,
@@ -44,56 +58,85 @@ The timing between updates is randomized to mimic irregular reporting intervals 
 }
 ```
 
+Typical response body:
+
+```json
+{
+  "data": {
+    "id": 42
+  }
+}
+```
+
+Subsequent update request (`PUT /users/{id}`) uses the same schema as registration and targets the identifier provided by the API:
+
+```json
+{
+  "name": "device-1234",
+  "temperature": 36.8,
+  "heart_rate": 90,
+  "blood_pressure": 110,
+  "respiratory_rate": 20
+}
+```
+
 ## Getting started
 
-### Prerequisites
-
-- Python 3.9 or newer
+### Requirements
+- Python 3.9+
 - [`pip`](https://pip.pypa.io/) for dependency management
+- Optional: Docker 20.10+
 
 ### Installation
-
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> **Note:** The current `requirements.txt` lists [`httpx`](https://www.python-httpx.org/), the HTTP client used for API calls.
-
 ### Running the simulator
-
 ```bash
 python device.py
 ```
+The simulator continues until interrupted (Ctrl+C), logging each request to stdout.
 
-Optional environment variables:
-
-- `URL`: Base URL of the monitoring API (default `http://localhost:8000`).
-- `UID`: Explicit identifier for the device. If omitted, a random UUID is used.
-
-The simulator will continue running until interrupted (Ctrl+C), periodically sending updated vitals to the remote server.
-
-## Docker support
-
-A `Dockerfile` is included to containerize the simulator. Build and run it with:
-
+### Docker
+Build and run the containerised simulator:
 ```bash
 docker build -t covid-device .
-docker run --rm -e URL="http://your-api:8000" covid-device
+docker run --rm \
+  -e URL="http://your-api:8000" \
+  covid-device
 ```
 
-The repository also provides a GitHub Actions workflow (`.github/workflows/docker-image.yml`) that builds and pushes the Docker image to Docker Hub whenever a version tag (`v*.*.*`) is pushed.
+## Configuration
+Configure behaviour with environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `URL`    | Base URL of the monitoring API. | `http://localhost:8000` |
+| `UID`    | Fixed identifier for the device. A UUID4 is generated when omitted. | *(generated)* |
+| `INTERVAL_MIN` | Minimum seconds between updates. | `2` |
+| `INTERVAL_MAX` | Maximum seconds between updates. | `5` |
+
+> **Tip:** Use a reverse proxy or tunnelling service when testing against remote APIs.
+
+## Development
+1. Clone the repository and create a feature branch.
+2. Create/activate a virtual environment and install dependencies (`pip install -r requirements.txt`).
+3. Run `python device.py` to verify the simulator communicates with your API.
+4. Add or update tests/documentation as required.
+5. Submit a pull request.
+
+## Troubleshooting
+| Symptom | Resolution |
+|---------|------------|
+| `ConnectionError` when starting | Ensure the API defined by `URL` is reachable. Update the environment variable or start a local mock server. |
+| HTTP 4xx responses | Confirm the target API exposes `/users` endpoints with POST/PUT/DELETE semantics expected by the simulator. |
+| Device records remain after exit | The cleanup step only runs on handled exceptions; manually remove stale records if the process is terminated forcefully. |
 
 ## Contributing
-
-1. Fork the repository and create a feature branch.
-2. Make your changes and add tests or documentation updates as needed.
-3. Ensure the simulator runs locally or inside Docker.
-4. Open a pull request describing your changes.
-
-Feel free to file issues for questions, feature requests, or bug reports.
+Issues and pull requests are welcome. Please describe the scenario you are testing and include reproduction steps where possible.
 
 ## License
-
 Specify the license that applies to the project (e.g., MIT, Apache 2.0). Update this section when a license is chosen.
