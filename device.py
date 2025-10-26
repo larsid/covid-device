@@ -1,17 +1,25 @@
 import os
 import random
 import time
-from typing import Any, Dict
 import uuid
+from typing import Any, Dict, Optional
+
 import httpx
 
 
 
 class Device:
-    def __init__(self, name: str, url: str) -> None:
+    def __init__(self, name: str, url: str, bind_ip: Optional[str] = None) -> None:
         self.id   = 0
         self.name = name
         self.url  = url
+        self.client = self._create_client(bind_ip)
+
+    def _create_client(self, bind_ip: Optional[str]) -> httpx.Client:
+        transport = None
+        if bind_ip:
+            transport = httpx.HTTPTransport(local_address=(bind_ip, 0))
+        return httpx.Client(transport=transport)
 
 
     def generate_data(self) -> Dict[str, Any]:
@@ -26,7 +34,7 @@ class Device:
     def connect(self):
         while 1:
             try:
-                response = httpx.get(url=f'{self.url}')
+                response = self.client.get(url=f'{self.url}')
 
                 if(response.is_success):
                     break
@@ -37,13 +45,13 @@ class Device:
 
     def create_user(self):
         data = self.generate_data()
-        response = httpx.post(url=f'{self.url}/users', json=data)
+        response = self.client.post(url=f'{self.url}/users', json=data)
         self.id = int(response.json()['data']['id'])
 
 
     def update_user(self):
         data = self.generate_data()
-        httpx.put(url=f'{self.url}/users/{self.id}', json=data)
+        self.client.put(url=f'{self.url}/users/{self.id}', json=data)
 
 
     def run(self):
@@ -55,7 +63,9 @@ class Device:
                 self.update_user()
                 time.sleep(random.randrange(2, 6))
         except:
-            httpx.delete(url=f'{self.url}/users/{self.id}')
+            self.client.delete(url=f'{self.url}/users/{self.id}')
+        finally:
+            self.client.close()
 
         
 
@@ -63,4 +73,5 @@ class Device:
 if(__name__=='__main__'):
     uid = str(os.getenv('UID', uuid.uuid4()))
     url = os.getenv('URL', 'http://localhost:8000')
-    Device(name=uid, url=url).run()
+    bind_ip = os.getenv('BIND_IP')
+    Device(name=uid, url=url, bind_ip=bind_ip).run()
