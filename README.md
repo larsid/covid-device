@@ -44,6 +44,42 @@ All application logic resides in [`device.py`](device.py).
 3. Enter an update loop, sending PUT requests to `/users/{id}` with fresh vitals every 2–5 seconds.
 4. Attempt to delete the remote record (`DELETE /users/{id}`) when the process stops unexpectedly.
 
+### Sample message formats
+
+Registration request (`POST /users`):
+
+```json
+{
+  "name": "device-1234",
+  "temperature": 37.2,
+  "heart_rate": 82,
+  "blood_pressure": 118,
+  "respiratory_rate": 18
+}
+```
+
+Typical response body:
+
+```json
+{
+  "data": {
+    "id": 42
+  }
+}
+```
+
+Subsequent update request (`PUT /users/{id}`) uses the same schema as registration and targets the identifier provided by the API:
+
+```json
+{
+  "name": "device-1234",
+  "temperature": 36.8,
+  "heart_rate": 90,
+  "blood_pressure": 110,
+  "respiratory_rate": 20
+}
+```
+
 ## Getting started
 
 ### Requirements
