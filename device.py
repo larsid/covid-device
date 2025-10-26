@@ -1,25 +1,26 @@
 import os
 import random
 import time
+from typing import Any, Dict
 import uuid
-from typing import Any, Dict, Optional
-
 import httpx
 
 
-
 class Device:
-    def __init__(self, name: str, url: str, bind_ip: Optional[str] = None) -> None:
+    def __init__(self, name: str, url: str, bind_ip: str = None) -> None:
         self.id   = 0
         self.name = name
         self.url  = url
-        self.client = self._create_client(bind_ip)
-
-    def _create_client(self, bind_ip: Optional[str]) -> httpx.Client:
-        transport = None
-        if bind_ip:
-            transport = httpx.HTTPTransport(local_address=(bind_ip, 0))
-        return httpx.Client(transport=transport)
+        self.bind_ip = bind_ip
+        
+        # Cria um cliente HTTP com bind local se o IP for especificado
+        if self.bind_ip:
+            # Cria um transport customizado que faz bind no IP especificado
+            transport = httpx.HTTPTransport(local_address=self.bind_ip)
+            self.client = httpx.Client(transport=transport)
+        else:
+            # Usa cliente padrão sem bind específico
+            self.client = httpx.Client()
 
 
     def generate_data(self) -> Dict[str, Any]:
@@ -65,6 +66,7 @@ class Device:
         except:
             self.client.delete(url=f'{self.url}/users/{self.id}')
         finally:
+            # Fecha o cliente HTTP ao finalizar
             self.client.close()
 
         
@@ -73,5 +75,6 @@ class Device:
 if(__name__=='__main__'):
     uid = str(os.getenv('UID', uuid.uuid4()))
     url = os.getenv('URL', 'http://localhost:8000')
-    bind_ip = os.getenv('BIND_IP')
+    bind_ip = os.getenv('BIND_IP', None)  # Novo parâmetro para o IP de bind
+    
     Device(name=uid, url=url, bind_ip=bind_ip).run()
